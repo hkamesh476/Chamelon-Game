@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Chameleon Party Game</title>
+  <style>
+    html, body {
+      height: 100%;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      /* respect device safe area (notch) */
+      padding: calc(env(safe-area-inset-top, 0px) + 10px) calc(env(safe-area-inset-right, 0px) + 10px) calc(env(safe-area-inset-bottom, 0px) + 10px) calc(env(safe-area-inset-left, 0px) + 10px);
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f0f4f8;
+      color: #222;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 2rem 1.5rem;
+      max-width: 420px;
+      width: 100%;
+      margin: 1rem;
+      text-align: center;
+      animation: fadeIn 0.5s;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5em;
+      color: #2b7a78;
+    }
+    h2 {
+      color: #3aafa9;
+      margin-bottom: 0.5em;
+    }
+    label, select, input {
+      font-size: 1rem;
+      margin: 0.5em 0;
+    }
+    select, input[type=number] {
+      padding: 0.4em 0.6em;
+      border-radius: 6px;
+      border: 1px solid #b2bec3;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      background: #3aafa9;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.7em 1.5em;
+      font-size: 1.1rem;
+      margin: 1em 0 0.5em 0;
+      cursor: pointer;
+      transition: background 0.2s;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    button:hover {
+      background: #2b7a78;
+    }
+    .hidden {
+      display: none;
+    }
+    .category-list {
+      margin-bottom: 1em;
+    }
+    .info {
+      color: #555;
+      font-size: 0.98em;
+      margin-bottom: 1em;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Responsive tweaks for phones and tablets */
+    @media (max-width: 420px) {
+      .container { max-width: 100%; padding: 1.2rem; border-radius: 12px; }
+      button { width: 100%; padding: 0.9em; font-size: 1.05rem; }
+      select, input[type=number] { font-size: 1.05rem; padding: 0.7em; }
+    }
+
+    @media (min-width: 900px) {
+      .container { max-width: 700px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="setup-screen">
+    <h1>Chameleon</h1>
+    <div>
+      <label for="player-count">Number of Players (min 3):</label><br>
+      <input type="number" id="player-count" min="3" max="20" value="4">
+    </div>
+    <div class="category-list">
+      <label for="category-select">Select Category:</label><br>
+      <select id="category-select"></select>
+    </div>
+    <button id="start-btn">Start Game</button>
+    <div class="info">One device, one Chameleon. Pass the device for private role reveals!</div>
+    <div style="margin-top:8px;text-align:left;font-size:0.95rem;">
+      <label>Share this form link with players — ask them what new categories they want</label>
+      <div id="form-link-display" style="margin-top:8px;word-break:break-all;color:#2b7a78;font-weight:500;font-size:0.98em;cursor:pointer;text-decoration:underline;"></div>
+    </div>
+  </div>
+
+  <div class="container hidden" id="player-home-screen">
+    <h2 id="player-home-title">Player Home</h2>
+    <div class="info" id="player-home-instruction">Hand the device to the correct player.</div>
+    <button id="unlock-btn">Unlock</button>
+  </div>
+
+  <div class="container hidden" id="role-reveal-screen">
+    <h2 id="role-title">Your Role</h2>
+    <div class="info" id="role-info"></div>
+    <button id="next-player-btn">Next Player</button>
+  </div>
+
+  <div class="container hidden" id="all-done-screen">
+    <h2>All Roles Assigned!</h2>
+    <div class="info">Let the verbal game begin! Give clues, discuss, and try to find the Chameleon. The Chameleon must blend in and guess the word!</div>
+    <div class="info" id="chameleon-clue" style="color:#2b7a78;font-weight:bold;"></div>
+    <button id="restart-btn">Restart Game</button>
+  </div>
+
+  <script>
+    // --- Clues for each word ---
+    const clues = {
+      Animals: {
+        Elephant: "Large, gray, has a trunk.",
+        Tiger: "Striped big cat.",
+        Kangaroo: "Jumps, pouch, Australia.",
+        Penguin: "Bird, can't fly, waddles.",
+        Giraffe: "Very long neck.",
+        Dolphin: "Smart sea mammal.",
+        Crocodile: "Big reptile, sharp teeth.",
+        Owl: "Nocturnal, wise, hoots.",
+        Rabbit: "Long ears, hops.",
+        Lion: "King of the jungle.",
+        Zebra: "Black and white stripes.",
+        Hippopotamus: "Large, river, Africa.",
+        Rhinoceros: "Horn on nose.",
+        Leopard: "Spotted big cat.",
+        Wolf: "Howls, pack animal.",
+        Fox: "Cunning, bushy tail.",
+        Bear: "Big, furry, hibernates.",
+        Moose: "Large antlers, northern.",
+        Koala: "Eucalyptus, Australia.",
+        Panda: "Black and white, bamboo.",
+        Camel: "Desert, humps.",
+        Otter: "Plays in water.",
+        Swan: "Graceful, white bird.",
+        Peacock: "Colorful tail feathers.",
+        Eagle: "Majestic bird of prey.",
+        Falcon: "Fast flying bird.",
+        Parrot: "Talks, colorful feathers.",
+        Chimpanzee: "Intelligent, climbs trees.",
+        Orangutan: "Red hair, long arms.",
+        Sloth: "Very slow, tree dweller.",
+        Armadillo: "Armor shell, rolls up.",
+        Porcupine: "Quills for defense.",
+        Bat: "Nocturnal, flies, mammal.",
+        Goat: "Horns, eats almost anything.",
+        Sheep: "Woolly, grazes fields.",
+        Horse: "Rides, gallops, mane.",
+        Donkey: "Stubborn, pack animal.",
+        Buffalo: "Large, horns, herd.",
+        Alligator: "Swamp reptile, strong jaws.",
+        Seal: "Flippers, barks, ocean."
+      },
+      Food: {
+        Pizza: "Round, cheese, slices.",
+        Sushi: "Rice, seaweed, raw fish.",
+        Burger: "Bun, patty, fast food.",
+        Pasta: "Noodles, Italian dish.",
+        Taco: "Mexican, folded, filling.",
+        Salad: "Leafy, healthy, raw.",
+        "Ice Cream": "Cold, sweet, dessert.",
+        Steak: "Grilled, beef, juicy.",
+        Curry: "Spicy, sauce, rice.",
+        Pancake: "Flat, breakfast, syrup.",
+        Sandwich: "Bread, filling, lunch.",
+        Dumplings: "Stuffed dough, steamed.",
+        Falafel: "Chickpeas, fried, Middle East.",
+        Paella: "Spanish, rice, seafood.",
+        Ramen: "Japanese, noodles, broth.",
+        Pho: "Vietnamese, soup, noodles.",
+        Burrito: "Wrapped, Mexican, filling.",
+        Lasagna: "Layered, pasta, cheese.",
+        Quiche: "Egg, pie, French.",
+        Waffles: "Grid, breakfast, syrup.",
+        Bagel: "Round, hole, chewy.",
+        Croissant: "Flaky, French, pastry.",
+        "Hot Dog": "Sausage, bun, ketchup.",
+        "Fried Rice": "Stir-fried, Asian, rice.",
+        "Chow Mein": "Chinese, noodles, stir-fry.",
+        Goulash: "Hungarian, stew, paprika.",
+        Pierogi: "Polish, dumpling, filling.",
+        Baklava: "Sweet, nuts, honey.",
+        Tiramisu: "Coffee, Italian, dessert.",
+        Moussaka: "Greek, eggplant, layers.",
+        Samosa: "Triangle, fried, spicy.",
+        Chili: "Spicy, beans, stew.",
+        Poutine: "Fries, gravy, cheese curds.",
+        Schnitzel: "Breaded, fried, meat.",
+        Kimchi: "Fermented, spicy, Korean.",
+        Tempura: "Battered, fried, Japanese.",
+        Ceviche: "Raw fish, citrus, Latin.",
+        Empanada: "Stuffed pastry, Latin.",
+        Gumbo: "Stew, Louisiana, spicy.",
+        "Clam Chowder": "Soup, seafood, creamy."
+      },
+      Countries: {
+        Brazil: "Carnival, Amazon, football.",
+        Japan: "Sushi, cherry blossoms, anime.",
+        Canada: "Maple leaf, hockey, north.",
+        Egypt: "Pyramids, Nile, pharaohs.",
+        France: "Eiffel Tower, wine, Paris.",
+        India: "Taj Mahal, spices, Bollywood.",
+        Australia: "Kangaroo, outback, Sydney.",
+        Italy: "Pizza, pasta, Rome.",
+        Kenya: "Safari, Maasai, savanna.",
+        Spain: "Flamenco, paella, Madrid.",
+        Norway: "Fjords, Vikings, northern lights.",
+        Sweden: "IKEA, ABBA, meatballs.",
+        Finland: "Sauna, lakes, Santa Claus.",
+        Denmark: "Lego, Copenhagen, pastries.",
+        Iceland: "Volcanoes, geysers, Reykjavik.",
+        Russia: "Vodka, Moscow, bears.",
+        China: "Great Wall, pandas, tea.",
+        "South Korea": "K-pop, Seoul, kimchi.",
+        Thailand: "Beaches, temples, Bangkok.",
+        Vietnam: "Pho, rice fields, Hanoi.",
+        Mexico: "Tacos, sombrero, Aztecs.",
+        Argentina: "Tango, beef, Buenos Aires.",
+        Chile: "Long, Andes, wine.",
+        Peru: "Machu Picchu, llamas, Andes.",
+        Colombia: "Coffee, emeralds, Bogotá.",
+        Nigeria: "Lagos, Nollywood, jollof.",
+        "South Africa": "Safari, Cape Town, Mandela.",
+        Morocco: "Desert, couscous, Marrakech.",
+        Turkey: "Istanbul, kebab, Bosphorus.",
+        Greece: "Olympics, islands, Athens.",
+        Poland: "Pierogi, Warsaw, history.",
+        Ukraine: "Kyiv, borscht, sunflower.",
+        Netherlands: "Windmills, tulips, Amsterdam.",
+        Belgium: "Chocolate, waffles, Brussels.",
+        Switzerland: "Alps, chocolate, watches.",
+        Austria: "Mozart, Vienna, Alps.",
+        "New Zealand": "Kiwi, rugby, Hobbiton.",
+        Philippines: "Islands, jeepney, Manila.",
+        Indonesia: "Bali, volcanoes, Jakarta.",
+        "Saudi Arabia": "Oil, desert, Mecca."
+      },
+      "Clash Royale Cards": {
+        "Archer Queen": "Champion, ranged, can cloak.",
+        "Baby Dragon": "Flying, breathes splash damage.",
+        "Golem": "Big, splits into two on death.",
+        "Hog Rider": "Jumps river, targets buildings.",
+        "P.E.K.K.A": "Heavy armor, single target, sword.",
+        "Zap": "Instant, stuns, small radius.",
+        "Balloon": "Flying, drops bombs on towers.",
+        "Mega Minion": "Flying, armored, single target.",
+        "Miner": "Digs underground, targets anywhere.",
+        "Princess": "Long range, shoots fire arrows."
+      }
+    };
+
+    // Build categories from clues and add Movies
+    const categories = {
+      Animals: Object.keys(clues.Animals),
+      Food: Object.keys(clues.Food),
+      Countries: Object.keys(clues.Countries),
+      Movies: ["Inception", "Titanic", "Avatar", "Jaws", "Gladiator", "Frozen", "Rocky", "Alien", "Up", "Shrek"],
+      "Clash Royale Cards": [
+        "Archer Queen","Archers","Arrows","Baby Dragon","Balloon","Bandit","Barbarian Barrel","Barbarian Hut","Barbarians","Bats","Battle Healer","Battle Ram","Berserker","Bomb Tower","Bomber","Boss Bandit","Bowler","Cannon","Cannon Cart","Dark Prince","Dark Goblin","Earthquake","Electro Dragon","Electro Giant","Electro Spirit","Electro Wizard","Elite Barbarians","Elixir Collector","Executioner","Fire Spirit","Fireball","Firecracker","Fisherman","Flying Machine","Freeze","Furnace","Giant","Giant Skeleton","Giant Snowball","Goblin Barrel","Goblin Cage","Goblin Curse","Goblin Demolisher","Goblin Drill","Goblin Gang","Goblin Giant","Goblin Hut","Goblin Machine","Goblins","Goblinstien","Golden Knight","Golem","Graveyard","Guards","Heal Spirit","Hog Rider","Hunter","Ice Golem","Ice Spirit","Ice Wizard","Inferno Dragon","Inferno Tower","Knight","Lava Hound","Lightning","Little Prince","Lumberjack","Magic Archer","Mega Knight","Mega Minion","Mighty Miner","Miner","Mini P.E.K.K.A","Minion Horde","Minions","Monk","Mortar","Mother Witch","Musketeer","Night Witch","P.E.K.K.A","Phoenix","Poison","Princess","Ram Rider","Rascal","Rascals","Rocket","Royal Delivery","Royal Ghost","Royal Giant","Royal Hogs","Royal Recruits","Rune Giant","Skeleton Army","Skeleton Barrel","Skeleton Dragons","Skeleton King","Skeletons","Sparky","Spear Goblins","Spooky Bush","Tesla","The Log","Three Musketeers","Tombstone","Tornado","Valkyrie","Vines","Wall Breakers","Witch","Wizard","Zap","Zappies"
+      ]
+    };
+
+    // --- State ---
+    let playerCount = 4;
+    let category = '';
+    let word = '';
+    let chameleonIndex = 0;
+    let currentPlayer = 0;
+    let roles = [];
+
+    // --- DOM Elements ---
+    const setupScreen = document.getElementById('setup-screen');
+    const playerHomeScreen = document.getElementById('player-home-screen');
+    const roleRevealScreen = document.getElementById('role-reveal-screen');
+    const allDoneScreen = document.getElementById('all-done-screen');
+    const playerCountInput = document.getElementById('player-count');
+    const categorySelect = document.getElementById('category-select');
+    const startBtn = document.getElementById('start-btn');
+    const unlockBtn = document.getElementById('unlock-btn');
+    const nextPlayerBtn = document.getElementById('next-player-btn');
+    const restartBtn = document.getElementById('restart-btn');
+    const playerHomeTitle = document.getElementById('player-home-title');
+    const playerHomeInstruction = document.getElementById('player-home-instruction');
+    const roleTitle = document.getElementById('role-title');
+    const roleInfo = document.getElementById('role-info');
+
+    // --- Initialize Category List ---
+    function populateCategories() {
+      categorySelect.innerHTML = '';
+      Object.keys(categories).forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        categorySelect.appendChild(opt);
+      });
+    }
+    populateCategories();
+
+    // --- Utility ---
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function showScreen(screen) {
+      [setupScreen, playerHomeScreen, roleRevealScreen, allDoneScreen].forEach(s => s.classList.add('hidden'));
+      screen.classList.remove('hidden');
+    }
+
+    // --- Game Flow ---
+    startBtn.onclick = () => {
+      playerCount = parseInt(playerCountInput.value, 10);
+      if (isNaN(playerCount) || playerCount < 3) {
+        alert('Minimum 3 players required!');
+        return;
+      }
+      // make sure any on-screen keyboard is dismissed on mobile
+      try { playerCountInput.blur(); categorySelect.blur(); } catch(e){}
+      category = categorySelect.value;
+      const words = categories[category];
+      word = words[Math.floor(Math.random() * words.length)];
+      chameleonIndex = Math.floor(Math.random() * playerCount);
+      roles = Array(playerCount).fill('Player');
+      roles[chameleonIndex] = 'Chameleon';
+      currentPlayer = 0;
+      showPlayerHome();
+    };
+
+    function showPlayerHome() {
+      // hide keyboard if visible before showing the home screen
+      try { document.activeElement.blur(); } catch(e){}
+      playerHomeTitle.textContent = `Player ${currentPlayer + 1} Home Screen`;
+      playerHomeInstruction.textContent = `Hand the device to Player ${currentPlayer + 1}.`;
+      showScreen(playerHomeScreen);
+    }
+
+    unlockBtn.onclick = () => {
+      showRoleReveal();
+    };
+
+    function showRoleReveal() {
+      try { document.activeElement.blur(); } catch(e){}
+      if (roles[currentPlayer] === 'Chameleon') {
+        roleTitle.textContent = 'You are the Chameleon!';
+        // if there's a specific clue, show it; otherwise provide a heuristic hint for Clash Royale cards
+        let clueText = '';
+        if (clues[category] && clues[category][word]) {
+          clueText = clues[category][word];
+        } else if (category === 'Clash Royale Cards') {
+          clueText = generateClashHint(word);
+        }
+        if (clueText) {
+          roleInfo.innerHTML = `Try to blend in and guess the word.<div style="margin-top:10px;color:#2b7a78;font-weight:600;">Clue: <span style=\"font-weight:normal;color:#123\">${escapeHtml(clueText)}</span></div>`;
+        } else {
+          roleInfo.textContent = 'Try to blend in and guess the word.';
+        }
+      } else {
+        roleTitle.textContent = 'You are a Normal Player';
+        roleInfo.innerHTML = `The word is: <b>${escapeHtml(word)}</b>`;
+      }
+      showScreen(roleRevealScreen);
+    }
+
+    function generateClashHint(name) {
+      if (!name) return '';
+      const n = name.toLowerCase();
+      if (n.includes('dragon')) return 'Flying unit (often splash damage).';
+      if (n.includes('giant')) return 'Large tank unit that targets buildings.';
+      if (n.includes('goblin')) return 'Small, quick melee unit(s).';
+      if (n.includes('hog')) return 'Fast unit that targets buildings.';
+      if (n.includes('miner')) return 'Underground unit that can appear anywhere.';
+      if (n.includes('princess')) return 'Long-range troop with splash arrows.';
+      if (n.includes('balloon')) return 'Flying unit that drops bombs on towers.';
+      if (n.includes('wizard') || n.includes('mage') || n.includes('wizard')) return 'Ranged spell-like troop that deals area damage.';
+      if (n.includes('inferno')) return 'Damage-over-time focused on single targets.';
+      if (n.includes('zap') || n.includes('lightning') || n.includes('fire')) return 'Spell or effect that stuns or damages.';
+      if (n.includes('skeleton')) return 'Many small units that swarm.';
+      if (n.includes('spear') || n.includes('archer') || n.includes('princess') || n.includes('royal ar')) return 'Ranged unit.';
+      return 'Clash Royale card — think troop, spell, or building name.';
+    }
+
+    function escapeHtml(str){ return String(str).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c]; }); }
+
+    nextPlayerBtn.onclick = () => {
+      currentPlayer++;
+      if (currentPlayer < playerCount) {
+        showPlayerHome();
+      } else {
+        // Show clue for the Chameleon if available
+        const clueDiv = document.getElementById('chameleon-clue');
+        let clueText = '';
+        if (clues[category] && clues[category][word]) {
+          clueText = `Chameleon Clue: ${clues[category][word]}`;
+        } else {
+          clueText = '';
+        }
+        clueDiv.textContent = clueText;
+        showScreen(allDoneScreen);
+      }
+    };
+
+    restartBtn.onclick = () => {
+      playerCountInput.value = 4;
+      populateCategories();
+      showScreen(setupScreen);
+    };
+
+    // --- Google Form link display only ---
+    const formLinkDisplay = document.getElementById('form-link-display');
+    (function showFormLink(){
+      const DEFAULT_FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSfTXRUMKlbf8EKuYq2FDSpZj8jlW5AF2B9bPok8_woXBUEDnQ/viewform?usp=header';
+      const v = localStorage.getItem('chameleonFormLink') || DEFAULT_FORM;
+      formLinkDisplay.innerHTML = `<a href="${v}" target="_blank" rel="noopener noreferrer" style="color:#2b7a78;text-decoration:underline;">${v}</a>`;
+    })();
+
+    // --- Start at Setup ---
+    showScreen(setupScreen);
+  </script>
+</body>
+</html>
